@@ -6,17 +6,17 @@
 #define COROUTINE_RUNNING 2
 #define COROUTINE_SUSPEND 3
 
-struct schedule;
+struct schedule;  // 前置声明协程调度器struct schedule类型
 
-typedef void (*coroutine_func)(struct schedule *, void *ud);
+typedef void (*coroutine_func)(struct schedule *, void *ud); // 协程函数指针
 
-struct schedule * coroutine_open(void);
-void coroutine_close(struct schedule *);
+struct schedule * coroutine_open(void);   // 创建协程调度器
+void coroutine_close(struct schedule *);  // 关闭协程调度器
 
-int coroutine_new(struct schedule *, coroutine_func, void *ud);
-void coroutine_resume(struct schedule *, int id);
-int coroutine_status(struct schedule *, int id);
-int coroutine_running(struct schedule *);
-void coroutine_yield(struct schedule *);
+int coroutine_new(struct schedule *, coroutine_func, void *ud);   // 创建协程任务,将其加入调度器中
+void coroutine_resume(struct schedule *, int id);                 // 重入协程号为id的协程任务
+int coroutine_status(struct schedule *, int id);                  // 根据协程任务id返回协程的当前状态
+int coroutine_running(struct schedule *);                         // 返回调度器S中正在running的协程任务id
+void coroutine_yield(struct schedule *);                          // 保持上下文后中断当前协程的执行
 
 #endif
