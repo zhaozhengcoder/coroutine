@@ -17,56 +17,63 @@
 
 struct coroutine;
 
+// 协程调度器
 struct schedule {
 	char stack[STACK_SIZE];
-	ucontext_t main;
-	int nco;
-	int cap;
-	int running;
-	struct coroutine **co;
+	ucontext_t main;        // 正在running的协程在执行完后需切换到的上下文
+	int nco;                // 调度器中已保存的协程数量
+	int cap;                // 调度器中协程的最大容量
+	int running;            // 调度器中正在running的协程id
+	struct coroutine **co;  // 连续内存空间，用于存储所有协程任务
 };
 
+// 协程任务类型
 struct coroutine {
-	coroutine_func func;
-	void *ud;
-	ucontext_t ctx;
-	struct schedule * sch;
-	ptrdiff_t cap;
-	ptrdiff_t size;
-	int status;
-	char *stack;
+	coroutine_func func;    // 协程函数
+	void *ud;               // 协程函数的参数(用户数据)
+	ucontext_t ctx;         // 协程上下文
+	struct schedule * sch;  // 协程所属的调度器
+	// ptrdiff_t定义在stddef.h(cstddef)中，通常被定义为long int类型，通常用来保存两个指针减法操作的结果.
+	ptrdiff_t cap;          // 协程栈的最大容量
+	ptrdiff_t size;         // 协程栈的当前容量
+	int status;             // 协程状态(COROUTINE_DEAD/COROUTINE_READY/COROUTINE_RUNNING/COROUTINE_SUSPEND)
+	char *stack;            // 协程栈
 };
 
+// 创建协程任务(分配内存空间)并初始化
 struct coroutine * 
 _co_new(struct schedule *S , coroutine_func func, void *ud) {
 	struct coroutine * co = malloc(sizeof(*co));
-	co->func = func;
-	co->ud = ud;
-	co->sch = S;
-	co->cap = 0;
-	co->size = 0;
-	co->status = COROUTINE_READY;
-	co->stack = NULL;
+	co->func = func;                // 初始化协程函数
+	co->ud = ud;                    // 初始化用户数据
+	co->sch = S;                    // 初始化协程所属的调度器
+	co->cap = 0;                    // 初始化协程栈的最大容量
+	co->size = 0;                   // 初始化协程栈的当前容量
+	co->status = COROUTINE_READY;   // 初始化协程状态
+	co->stack = NULL;               // 初始化协程栈
 	return co;
 }
 
+// 销毁协程任务(释放内存空间)
 void
 _co_delete(struct coroutine *co) {
 	free(co->stack);
 	free(co);
 }
 
+// 创建协程调度器schedule
 struct schedule * 
 coroutine_open(void) {
-	struct schedule *S = malloc(sizeof(*S));
-	S->nco = 0;
-	S->cap = DEFAULT_COROUTINE;
+	struct schedule *S = malloc(sizeof(*S));              // 从堆上为调度器分配内存空间
+	S->nco = 0;                                           // 初始化调度器的当前协程数量
+	S->cap = DEFAULT_COROUTINE;                           // 初始化调度器的最大协程数量
 	S->running = -1;
-	S->co = malloc(sizeof(struct coroutine *) * S->cap);
+	S->co = malloc(sizeof(struct coroutine *) * S->cap);  // 为调度器中的协程分配存储空间
 	memset(S->co, 0, sizeof(struct coroutine *) * S->cap);
 	return S;
 }
 
+// 销毁协程调度器schedule
 void 
 coroutine_close(struct schedule *S) {
 	int i;
@@ -81,10 +88,15 @@ coroutine_close(struct schedule *S) {
 	free(S);
 }
 
+// 创建协程任务、并将其加入调度器中
 int 
 coroutine_new(struct schedule *S, coroutine_func func, void *ud) {
+	// 创建协程任务(分配内存空间)并初始化
 	struct coroutine *co = _co_new(S, func , ud);
+	
+	// 将协程任务co加入调度器S,并返回该协程任务的id
 	if (S->nco >= S->cap) {
+		// 调整调度器S中协程的最大容量,然后将协程任务co加入调度器S,并返回该协程任务的id
 		int id = S->cap;
 		S->co = realloc(S->co, S->cap * 2 * sizeof(struct coroutine *));
 		memset(S->co + S->cap , 0 , sizeof(struct coroutine *) * S->cap);
@@ -93,6 +105,7 @@ coroutine_new(struct schedule *S, coroutine_func func, void *ud) {
 		++S->nco;
 		return id;
 	} else {
+		// 将协程任务co加入调度器S,并返回该协程任务的id
 		int i;
 		for (i=0;i<S->cap;i++) {
 			int id = (i+S->nco) % S->cap;
@@ -107,6 +120,7 @@ coroutine_new(struct schedule *S, coroutine_func func, void *ud) {
 	return -1;
 }
 
+// 所有新协程第一次执行时的入口函数
 static void
 mainfunc(uint32_t low32, uint32_t hi32) {
 	uintptr_t ptr = (uintptr_t)low32 | ((uintptr_t)hi32 << 32);
@@ -120,6 +134,7 @@ mainfunc(uint32_t low32, uint32_t hi32) {
 	S->running = -1;
 }
 
+// 重入协程号为id的协程任务
 void 
 coroutine_resume(struct schedule * S, int id) {
 	assert(S->running == -1);
@@ -130,21 +145,21 @@ coroutine_resume(struct schedule * S, int id) {
 	int status = C->status;
 	switch(status) {
 	case COROUTINE_READY:
-		getcontext(&C->ctx);
-		C->ctx.uc_stack.ss_sp = S->stack;
-		C->ctx.uc_stack.ss_size = STACK_SIZE;
-		C->ctx.uc_link = &S->main;
+		getcontext(&C->ctx);                    // 获取程序当前上下文
+		C->ctx.uc_stack.ss_sp = S->stack;       // 设置上下文C->ctx的栈
+		C->ctx.uc_stack.ss_size = STACK_SIZE;   // 设置上下文C->ctx的栈容量
+		C->ctx.uc_link = &S->main;              // 设置上下文C->ctx执行完后恢复到S->main上下文, 否则当前线程因没有上下文可执行而退出
 		S->running = id;
 		C->status = COROUTINE_RUNNING;
 		uintptr_t ptr = (uintptr_t)S;
-		makecontext(&C->ctx, (void (*)(void)) mainfunc, 2, (uint32_t)ptr, (uint32_t)(ptr>>32));
-		swapcontext(&S->main, &C->ctx);
+		makecontext(&C->ctx, (void (*)(void)) mainfunc, 2, (uint32_t)ptr, (uint32_t)(ptr>>32)); // 修改上下文C->ctx, 新的上下文中执行函数mainfunc
+		swapcontext(&S->main, &C->ctx);         // 保持当前上下文到S->main, 切换当前上下文为C->ctx
 		break;
 	case COROUTINE_SUSPEND:
-		memcpy(S->stack + STACK_SIZE - C->size, C->stack, C->size);
-		S->running = id;
-		C->status = COROUTINE_RUNNING;
-		swapcontext(&S->main, &C->ctx);
+		memcpy(S->stack + STACK_SIZE - C->size, C->stack, C->size);  // 拷贝协程栈C->stack到S->stack
+		S->running = id;                       // 设置当前运行的协程id
+		C->status = COROUTINE_RUNNING;         // 修改协程C的状态
+		swapcontext(&S->main, &C->ctx);        // 保持当前上下文到S->main, 切换当前上下文为C->ctx
 		break;
 	default:
 		assert(0);
@@ -156,26 +171,30 @@ _save_stack(struct coroutine *C, char *top) {
 	char dummy = 0;
 	assert(top - &dummy <= STACK_SIZE);
 	if (C->cap < top - &dummy) {
+		// 为协程栈分配内存空间
 		free(C->stack);
 		C->cap = top-&dummy;
 		C->stack = malloc(C->cap);
 	}
+	
 	C->size = top - &dummy;
 	memcpy(C->stack, &dummy, C->size);
 }
 
+// 保持上下文后中断当前协程的执行
 void
 coroutine_yield(struct schedule * S) {
 	int id = S->running;
 	assert(id >= 0);
 	struct coroutine * C = S->co[id];
 	assert((char *)&C > S->stack);
-	_save_stack(C,S->stack + STACK_SIZE);
-	C->status = COROUTINE_SUSPEND;
-	S->running = -1;
+	_save_stack(C,S->stack + STACK_SIZE);   // 保存协程栈
+	C->status = COROUTINE_SUSPEND;          // 修改协程状态
+	S->running = -1;                        // 修改当前执行的协程id为-1
 	swapcontext(&C->ctx , &S->main);
 }
 
+// 根据协程任务id返回协程的当前状态
 int 
 coroutine_status(struct schedule * S, int id) {
 	assert(id>=0 && id < S->cap);
@@ -185,8 +204,8 @@ coroutine_status(struct schedule * S, int id) {
 	return S->co[id]->status;
 }
 
+// 返回调度器S中正在running的协程任务id
 int 
 coroutine_running(struct schedule * S) {
 	return S->running;
 }
-
