@@ -159,13 +159,14 @@ coroutine_resume(struct schedule * S, int id) {
 		memcpy(S->stack + STACK_SIZE - C->size, C->stack, C->size);  // 拷贝协程栈C->stack到S->stack
 		S->running = id;                       // 设置当前运行的协程id
 		C->status = COROUTINE_RUNNING;         // 修改协程C的状态
-		swapcontext(&S->main, &C->ctx);        // 保持当前上下文到S->main, 切换当前上下文为C->ctx
+		swapcontext(&S->main, &C->ctx);        // 保存当前上下文到S->main, 切换当前上下文为C->ctx
 		break;
 	default:
 		assert(0);
 	}
 }
 
+// 保存协程栈
 static void
 _save_stack(struct coroutine *C, char *top) {
 	char dummy = 0;
@@ -178,10 +179,10 @@ _save_stack(struct coroutine *C, char *top) {
 	}
 	
 	C->size = top - &dummy;
-	memcpy(C->stack, &dummy, C->size);
+	memcpy(C->stack, &dummy, C->size); // TODO - 不是很明白为什么这种方式可以保存协程栈
 }
 
-// 保持上下文后中断当前协程的执行
+// 保存上下文后中断当前协程的执行
 void
 coroutine_yield(struct schedule * S) {
 	int id = S->running;
@@ -191,7 +192,7 @@ coroutine_yield(struct schedule * S) {
 	_save_stack(C,S->stack + STACK_SIZE);   // 保存协程栈
 	C->status = COROUTINE_SUSPEND;          // 修改协程状态
 	S->running = -1;                        // 修改当前执行的协程id为-1
-	swapcontext(&C->ctx , &S->main);
+	swapcontext(&C->ctx , &S->main);        // 保存当前协程的上下文到C->ctx, 切换当前上下文到S->main
 }
 
 // 根据协程任务id返回协程的当前状态
