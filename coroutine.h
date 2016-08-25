@@ -8,7 +8,7 @@
 
 struct schedule;  // 前置声明协程调度器struct schedule类型
 
-typedef void (*coroutine_func)(struct schedule *, void *ud); // 协程函数指针
+typedef void (*coroutine_func)(struct schedule *, void *ud); // 声明一个函数指针类型
 
 struct schedule * coroutine_open(void);   // 创建协程调度器
 void coroutine_close(struct schedule *);  // 关闭协程调度器
