@@ -20,7 +20,7 @@ struct coroutine;
 // 协程调度器
 struct schedule {
 	char stack[STACK_SIZE];
-	ucontext_t main;        // 正在running的协程在执行完后需切换到的上下文
+	ucontext_t main;        // 正在running的协程在执行完后需切换到的上下文，由于是非对称协程，所以该上下文用来接管协程结束后的程序控制权
 	int nco;                // 调度器中已保存的协程数量
 	int cap;                // 调度器中协程的最大容量
 	int running;            // 调度器中正在running的协程id
@@ -120,7 +120,7 @@ coroutine_new(struct schedule *S, coroutine_func func, void *ud) {
 	return -1;
 }
 
-// 所有新协程第一次执行时的入口函数
+// 所有新协程第一次执行时的入口函数(其中执行协程,并处理善后工作等)
 static void
 mainfunc(uint32_t low32, uint32_t hi32) {
 	uintptr_t ptr = (uintptr_t)low32 | ((uintptr_t)hi32 << 32);
@@ -134,7 +134,7 @@ mainfunc(uint32_t low32, uint32_t hi32) {
 	S->running = -1;
 }
 
-// 重入协程号为id的协程任务
+// 恢复协程号为id的协程任务
 void 
 coroutine_resume(struct schedule * S, int id) {
 	assert(S->running == -1);
@@ -182,7 +182,7 @@ _save_stack(struct coroutine *C, char *top) {
 	memcpy(C->stack, &dummy, C->size); // TODO - 不是很明白为什么这种方式可以保存协程栈
 }
 
-// 保存上下文后中断当前协程的执行
+// 保存上下文后中断当前协程的执行,然后由调度器中的main上下文接管程序执行权
 void
 coroutine_yield(struct schedule * S) {
 	int id = S->running;
