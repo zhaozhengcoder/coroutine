@@ -9,6 +9,7 @@ struct args
 static void
 foo(struct schedule *S, void *ud)
 {
+    printf("coroutine %d \n", coroutine_running(S));
     struct args *arg = ud;
     int start = arg->n;
     int i;
@@ -16,6 +17,8 @@ foo(struct schedule *S, void *ud)
     {
         printf("coroutine %d : %d\n", coroutine_running(S), start + i);
         coroutine_yield(S);
+
+        printf("yeild end  %d\n", coroutine_running(S));
     }
 }
 
@@ -31,7 +34,10 @@ test(struct schedule *S)
     while (coroutine_status(S, co1) && coroutine_status(S, co2))
     {
         coroutine_resume(S, co1);
+        printf("after co1 \n");
+
         coroutine_resume(S, co2);
+        printf("after co2 \n\n");
     }
     printf("main end\n");
 }

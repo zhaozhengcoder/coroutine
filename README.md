@@ -17,3 +17,8 @@ Chinese blog : http://blog.codingnow.com/2012/07/c_coroutine.html
 云风实现的协程简单明了,非常适合入门协程.
 
 笔者在这里fork了云风的coroutine库,根据自己的理解为代码添加了注释,方便自己理解协程的工作原理.
+
+
+----- 
+
+顺便写了一个使用云风的协程库，异步逻辑转同步的demo
