@@ -22,8 +22,8 @@ struct schedule
 {
     char stack[STACK_SIZE];
     ucontext_t main;       // 正在running的协程在执行完后需切换到的上下文，由于是非对称协程，所以该上下文用来接管协程结束后的程序控制权
-    int nco;               // 调度器中已保存的协程数量
-    int cap;               // 调度器中协程的最大容量
+    int nco;               // 调度器中已保存的协程数量 (当前协程的数量)
+    int cap;               // 调度器中协程的最大容量 (max=16)
     int running;           // 调度器中正在running的协程id
     struct coroutine **co; // 连续内存空间，用于存储所有协程任务
 };
